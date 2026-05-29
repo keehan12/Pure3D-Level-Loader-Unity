@@ -16,9 +16,10 @@ public class HeadController : MonoBehaviour
 	private float sensitivity = 3;
 	
 	//Free camera
+	private Vector3 moveDirection;
+	private Vector3 position;
 	private float upDown;
 	private GameObject spawn;
-	private Vector3 position;
 	
 	void Awake()
 	{
@@ -55,7 +56,7 @@ public class HeadController : MonoBehaviour
 					direction = "Up";
 				}
 				
-				//Set position to player position + head movement
+				//Speed multiplier
 				if (Input.GetAxis("Vertical") != 0 || Input.GetAxis("Horizontal") != 0)
 				{
 					if (player.GetComponent<PlayerController>().running == false)
@@ -76,7 +77,7 @@ public class HeadController : MonoBehaviour
 				}
 			}
 			
-			//Transform
+			//Set position to player position + head movement
 			transform.position = new Vector3(player.position.x, player.position.y + Mathf.Lerp(amount, -amount, lerp), player.position.z);
 			
 			MouseLook();
@@ -121,24 +122,22 @@ public class HeadController : MonoBehaviour
 			}
 			
 			//Move direction
-			Vector3 moveDirection = new Vector3(Input.GetAxis("Horizontal"), upDown, Input.GetAxis("Vertical"));
+			moveDirection = new Vector3(Input.GetAxis("Horizontal"), upDown, Input.GetAxis("Vertical")).normalized;
 			
 			//Transform direction
 			moveDirection = transform.TransformDirection(moveDirection);
 			
-			//Position
-			float speedMultiplier = 0;
-			
-			if (Input.GetKey(KeyCode.LeftShift))
+			//Speed multiplier
+			if (!Input.GetKey(KeyCode.LeftShift))
 			{
-				speedMultiplier = 64;
+				//Walking
+				speed = temp * 6;
 			}
 			else
 			{
-				speedMultiplier = 32;
+				//Running
+				speed = temp * 12;
 			}
-			
-			position = moveDirection * speed * speedMultiplier * Time.deltaTime;
 		}
 	}
 	
@@ -160,6 +159,7 @@ public class HeadController : MonoBehaviour
 		else
 		{
 			//Transform position
+			position = moveDirection * speed * Time.deltaTime;
 			transform.position += position;
 		}
 	}

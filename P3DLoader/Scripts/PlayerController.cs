@@ -11,6 +11,7 @@ public class PlayerController : MonoBehaviour
 	[HideInInspector] public bool running;
 	public float gravity = 12;
 	public float jump = 4;
+	private bool once = true;
 
 	void Awake()
 	{
@@ -50,6 +51,11 @@ public class PlayerController : MonoBehaviour
 		{
 			if (controller.isGrounded)
 			{
+				if (once == true)
+				{
+					once = false;
+				}
+				
 				//Running
 				if (Input.GetKey(KeyCode.LeftShift))
 				{
@@ -67,6 +73,9 @@ public class PlayerController : MonoBehaviour
 				moveDirection.x = Input.GetAxis("Horizontal");
 				moveDirection.z = Input.GetAxis("Vertical");
 				
+				//Transform direction
+				moveDirection = transform.TransformDirection(moveDirection);
+				
 				//Jump
 				if (Input.GetKey(KeyCode.Space))
 				{
@@ -75,14 +84,20 @@ public class PlayerController : MonoBehaviour
 			}
 			else
 			{
+				//Air movement
+				if (once == false)
+				{
+					running = false;
+					airMoveDirection.x = moveDirection.x * 0.25f;
+					airMoveDirection.z = moveDirection.z * 0.25f;
+					once = true;
+				}
+				
 				//Set direction
 				moveDirection.x = airMoveDirection.x;
 				moveDirection.z = airMoveDirection.z;
 			}
 		}
-		
-		//Transform direction
-		moveDirection = transform.TransformDirection(moveDirection);
 		
 		//Diagonal movement speed
 		if (Input.GetAxis("Horizontal") != 0 && Input.GetAxis("Vertical") != 0)
@@ -119,10 +134,7 @@ public class PlayerController : MonoBehaviour
 	
 	void Jump()
 	{
-		airMoveDirection.x = moveDirection.x / 1.25f;
 		moveDirection.y = jump;
-		airMoveDirection.z = moveDirection.z / 1.25f;
-		running = false;
 	}
 	
 	void Respawn()
