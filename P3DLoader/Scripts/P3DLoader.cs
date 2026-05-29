@@ -79,6 +79,14 @@ public class P3DLoader : MonoBehaviour
 					Locator(level, chunk);
 				}
 				
+				//Skeleton
+				var skeletonChunks = p3dFile.GetChunksOfType<NetP3DLib.P3D.Chunks.SkeletonChunk>();
+				
+				foreach (var chunk in skeletonChunks)
+				{
+					Skeleton(level, chunk);
+				}
+				
 				Debug.Log("Found p3d: " + file);
 			}
 		}
@@ -188,6 +196,58 @@ public class P3DLoader : MonoBehaviour
 			
 			//Debug if data exists
 			Debug.Log(chunk.Name + ", position: " + position);
+		}
+	}
+	
+	void Skeleton(int level, NetP3DLib.P3D.Chunks.SkeletonChunk chunk)
+	{
+		//Skeleton Joint
+		var skeletonJointChunks = chunk.GetChunksOfType<NetP3DLib.P3D.Chunks.SkeletonJointChunk>();
+		
+		foreach (var skeletonJoint in skeletonJointChunks)
+		{
+			//Matrix4x4 Transform data
+			float M11 = skeletonJoint.RestPose.M11;
+			float M12 = skeletonJoint.RestPose.M12;
+			float M13 = skeletonJoint.RestPose.M13;
+			float M14 = skeletonJoint.RestPose.M14;
+			
+			float M21 = skeletonJoint.RestPose.M21;
+			float M22 = skeletonJoint.RestPose.M22;
+			float M23 = skeletonJoint.RestPose.M23;
+			float M24 = skeletonJoint.RestPose.M24;
+			
+			float M31 = skeletonJoint.RestPose.M31;
+			float M32 = skeletonJoint.RestPose.M32;
+			float M33 = skeletonJoint.RestPose.M33;
+			float M34 = skeletonJoint.RestPose.M34;
+			
+			float M41 = skeletonJoint.RestPose.M41;
+			float M42 = skeletonJoint.RestPose.M42;
+			float M43 = skeletonJoint.RestPose.M43;
+			float M44 = skeletonJoint.RestPose.M44;
+			
+			//Set position and rotation from matrix
+			Matrix4x4 matrix = new Matrix4x4(new Vector4(M11, M12, M13, M14), new Vector4(M21, M22, M23, M24), new Vector4(M31, M32, M33, M34), new Vector4(M41, M42, M43, M44));
+			Vector3 position = matrix.GetColumn(3);
+			Quaternion rotation = Quaternion.LookRotation(matrix.GetColumn(1), matrix.GetColumn(2));
+				
+			//Instantiate resources if available by Name
+			if (Resources.Load("Level " + level + "/" + skeletonJoint.Name))
+			{
+				GameObject empty = new GameObject();
+				empty.transform.position = position;
+				empty.transform.rotation = rotation;
+				empty.transform.localRotation = Quaternion.Euler(rotation.eulerAngles.x + objectChunkRotation.x, rotation.eulerAngles.y + objectChunkRotation.y, rotation.eulerAngles.z + objectChunkRotation.z);
+				
+				GameObject obj = Instantiate(Resources.Load("Level " + level + "/" + skeletonJoint.Name) as GameObject, empty.transform.position, empty.transform.rotation);
+				
+				//Add to objects list
+				objects.Add(obj);
+			}
+			
+			//Debug if data exists
+			Debug.Log(skeletonJoint.Name + ", position: " + position + ", rotation: " + rotation);
 		}
 	}
 }
