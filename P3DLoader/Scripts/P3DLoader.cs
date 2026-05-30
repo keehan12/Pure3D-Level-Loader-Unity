@@ -84,7 +84,7 @@ public class P3DLoader : MonoBehaviour
 				
 				foreach (var chunk in skeletonChunks)
 				{
-					Skeleton(level, chunk);
+					Skeleton(level, chunk, null);
 				}
 				
 				Debug.Log("Found p3d: " + file);
@@ -197,9 +197,39 @@ public class P3DLoader : MonoBehaviour
 			//Debug if data exists
 			Debug.Log(chunk.Name + ", position: " + position);
 		}
+		
+		//rocke
+		if (chunk.Name.Contains("rocke"))
+		{
+			//Skeleton
+			string path = gameArtPath + "/cars/rocke_v" + ".p3d";
+			
+			//New p3d file from path
+			var carP3d = new P3DFile(path);
+			
+			var skeletonChunks = carP3d.GetChunksOfType<NetP3DLib.P3D.Chunks.SkeletonChunk>();
+			
+			foreach (var skeleton in skeletonChunks)
+			{
+				//Get Position data
+				Vector3 position = new Vector3(chunk.Position.X, chunk.Position.Y, chunk.Position.Z);
+				
+				GameObject car = new GameObject();
+				car.name = skeleton.Name;
+				car.transform.position = position + new Vector3(0, 1, 0);
+				
+				//Add to objects list
+				objects.Add(car);
+			
+				Skeleton(level, skeleton, car);
+				
+				//Debug if data exists
+				Debug.Log(chunk.Name + ", position: " + position);
+			}
+		}
 	}
 	
-	void Skeleton(int level, NetP3DLib.P3D.Chunks.SkeletonChunk chunk)
+	void Skeleton(int level, NetP3DLib.P3D.Chunks.SkeletonChunk chunk, GameObject car)
 	{
 		//Skeleton Joint
 		var skeletonJointChunks = chunk.GetChunksOfType<NetP3DLib.P3D.Chunks.SkeletonJointChunk>();
@@ -233,21 +263,90 @@ public class P3DLoader : MonoBehaviour
 			Quaternion rotation = Quaternion.LookRotation(matrix.GetColumn(1), matrix.GetColumn(2));
 				
 			//Instantiate resources if available by Name
-			if (Resources.Load("Level " + level + "/" + skeletonJoint.Name))
+			if (car == null)
 			{
-				GameObject empty = new GameObject();
-				empty.transform.position = position;
-				empty.transform.rotation = rotation;
-				empty.transform.localRotation = Quaternion.Euler(rotation.eulerAngles.x + objectChunkRotation.x, rotation.eulerAngles.y + objectChunkRotation.y, rotation.eulerAngles.z + objectChunkRotation.z);
+				if (Resources.Load("Level " + level + "/" + skeletonJoint.Name))
+				{
+					GameObject obj = Instantiate(Resources.Load("Level " + level + "/" + skeletonJoint.Name) as GameObject, position, rotation);
+					obj.transform.localRotation = Quaternion.Euler(rotation.eulerAngles.x + objectChunkRotation.x, rotation.eulerAngles.y + objectChunkRotation.y, rotation.eulerAngles.z + objectChunkRotation.z);
+					
+					//Add to objects list
+					objects.Add(obj);
+				}
+			}
+			else
+			{
+				//Car
+				GameObject joint = new GameObject();
+				joint.name = skeletonJoint.Name;
+				joint.transform.position = car.transform.position + position;
+				joint.transform.SetParent(car.transform, true);
 				
-				GameObject obj = Instantiate(Resources.Load("Level " + level + "/" + skeletonJoint.Name) as GameObject, empty.transform.position, empty.transform.rotation);
+				//Base model names
+				if (skeletonJoint.Name == car.name)
+				{
+					CarModel(joint, car, car.name + "Shape");
+				}
+				
+				if (skeletonJoint.Name == "DoorDRot")
+				{
+					CarModel(joint, car, "DoorDRotShape");
+					CarModel(joint, car, "DoorDWindShape");
+				}
+				
+				if (skeletonJoint.Name == "wind")
+				{
+					CarModel(joint, car, "windShape");
+				}
+				
+				if (skeletonJoint.Name == "wind2")
+				{
+					CarModel(joint, car, "wind2Shape");
+				}
+				
+				if (car.name == "rocke_v")
+				{
+					//Wheels
+					if (skeletonJoint.Name == "w0" || skeletonJoint.Name == "w1")
+					{
+						CarWheel(joint, car, "wShape0");
+					}
+				}
 				
 				//Add to objects list
-				objects.Add(obj);
+				objects.Add(joint);
 			}
 			
 			//Debug if data exists
 			Debug.Log(skeletonJoint.Name + ", position: " + position + ", rotation: " + rotation);
+		}
+	}
+	
+	void CarModel(GameObject joint, GameObject car, string name)
+	{
+		if (Resources.Load("Cars/" + car.name + "/" + name))
+		{
+			GameObject model = Instantiate(Resources.Load("Cars/" + car.name + "/" + name) as GameObject);
+			
+			//Set parent to joint
+			model.transform.SetParent(joint.transform, false);
+			
+			//Offset model rotation
+			model.transform.rotation = Quaternion.Euler(model.transform.rotation.eulerAngles.x, model.transform.rotation.eulerAngles.y + 180, model.transform.rotation.eulerAngles.z);
+		}
+	}
+	
+	void CarWheel(GameObject joint, GameObject car, string name)
+	{
+		if (Resources.Load("Cars/" + car.name + "/" + name))
+		{
+			GameObject wheel = Instantiate(Resources.Load("Cars/" + car.name + "/" + name) as GameObject);
+			
+			//Set parent to joint
+			wheel.transform.SetParent(joint.transform, false);
+			
+			//Offset model rotation
+			wheel.transform.rotation = Quaternion.Euler(wheel.transform.rotation.eulerAngles.x, wheel.transform.rotation.eulerAngles.y + 180, wheel.transform.rotation.eulerAngles.z);
 		}
 	}
 }
