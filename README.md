@@ -20,5 +20,3 @@ Tab to show/hide UI
 
 ### To do
 Other chunk types
-Mesh creation
-Texture reading
