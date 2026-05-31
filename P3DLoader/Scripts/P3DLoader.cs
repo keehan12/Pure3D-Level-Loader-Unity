@@ -121,7 +121,7 @@ public class P3DLoader : MonoBehaviour
 					
 				foreach (var chunk in locatorChunks)
 				{
-					Locator(level, chunk);
+					Locator(chunk);
 				}
 				
 				//Skeleton
@@ -219,7 +219,7 @@ public class P3DLoader : MonoBehaviour
 		}		
 	}
 	
-	void Locator(int level, NetP3DLib.P3D.Chunks.LocatorChunk chunk)
+	void Locator(NetP3DLib.P3D.Chunks.LocatorChunk chunk)
 	{
 		//Locator is Coin
 		if (Convert.ToString(chunk.LocatorType) == "Coin")
@@ -248,6 +248,10 @@ public class P3DLoader : MonoBehaviour
 		{
 			string path = "";
 			
+			//Get Position data
+			Vector3 position = new Vector3(chunk.Position.X, chunk.Position.Y, chunk.Position.Z);
+			
+			//Search for car path
 			if (!Convert.ToString(chunk.Name).Contains("_v"))
 			{
 				if (File.Exists(gameArtPath + "/cars/" + chunk.Name + "_v" + ".p3d"))
@@ -270,46 +274,11 @@ public class P3DLoader : MonoBehaviour
 					path = gameArtPath + "/cars/" + chunk.Name + ".p3d";
 				}
 			}
-				
+			
+			//Car Skeleton
 			if (path != "")
 			{
-				//New p3d file from path
-				var carP3d = new P3DFile(path);
-				
-				var skeletonChunks = carP3d.GetChunksOfType<NetP3DLib.P3D.Chunks.SkeletonChunk>();
-				
-				foreach (var skeleton in skeletonChunks)
-				{
-					//Get Position data
-					Vector3 position = new Vector3(chunk.Position.X, chunk.Position.Y, chunk.Position.Z);
-					
-					//New car
-					Car car = new Car();
-					car.name = skeleton.Name;
-					car.position = position + new Vector3(0, 1, 0);
-					
-					//Car skeleton
-					List<GameObject> carSkeleton = Skeleton(level, skeleton, car);
-					
-					if (carSkeleton != null)
-					{
-						//Empty parent
-						GameObject parent = new GameObject();
-						parent.transform.position = car.position;
-						parent.name = car.name;
-					
-						foreach (GameObject joint in carSkeleton)
-						{
-							joint.transform.SetParent(parent.transform);
-						}
-						
-						//Add to objects list
-						objects.Add(parent);
-					}
-					
-					//Debug if data exists
-					Debug.Log(chunk.Name + ", position: " + position);
-				}
+				CarSkeleton(path, position);
 			}
 		}
 	}
@@ -373,9 +342,9 @@ public class P3DLoader : MonoBehaviour
 				parent.transform.position = car.position + position;
 				parent.transform.rotation = Quaternion.Euler(rotation.eulerAngles.x + objectChunkRotation.x, rotation.eulerAngles.y + objectChunkRotation.y, rotation.eulerAngles.z + objectChunkRotation.z);;
 				
+				//Set custom parent
 				List<string> carsWithCustomParents = new List<string>();
 				
-				//Set custom parent
 				for (int i = 0; i < customParents.Count; i++)
 				{
 					carsWithCustomParents.Add(customParents[i].car);
@@ -387,7 +356,8 @@ public class P3DLoader : MonoBehaviour
 						{
 							JointCar(car, joint, parent);
 						}
-						else if (customParents[i].parent == skeletonJoint.Name) //Custom parents
+						
+						if (customParents[i].parent == skeletonJoint.Name) //Custom parents
 						{
 							if (customParents[i].child != skeletonJoint.Name)
 							{
@@ -398,13 +368,9 @@ public class P3DLoader : MonoBehaviour
 					}
 				}
 				
-				//Base models for car without custom parents
-				if (!carsWithCustomParents.Contains(car.name))
-				{
-					JointCar(car, joint, parent);
-				}
-				
 				//Wheels
+				string current = "";
+				
 				for (int i = 0; i < wheels.Count; i++)
 				{
 					for (int a = 0; a < wheels[i].wheel.Count; a++)
@@ -413,10 +379,20 @@ public class P3DLoader : MonoBehaviour
 						{
 							if (wheels[i].wheel[a].joint == skeletonJoint.Name)
 							{
+								current = wheels[i].wheel[a].joint;
 								joint.model = wheels[i].wheel[a].model;
 								JointCar(car, joint, parent);
 							}
 						}
+					}
+				}
+				
+				//Base models for car without custom parents
+				if (!carsWithCustomParents.Contains(car.name))
+				{
+					if (current != skeletonJoint.Name)
+					{
+						JointCar(car, joint, parent);
 					}
 				}
 				
@@ -429,6 +405,16 @@ public class P3DLoader : MonoBehaviour
 		}
 		
 		return joints;
+	}
+	
+	void JointCar(Car car, CarJoint joint, GameObject parent)
+	{
+		GameObject carJoint = ModelCar(car, joint);
+							
+		if (carJoint != null)
+		{
+			carJoint.transform.SetParent(parent.transform, true);
+		}
 	}
 	
 	GameObject ModelCar(Car car, CarJoint joint)
@@ -445,13 +431,41 @@ public class P3DLoader : MonoBehaviour
 		return null;
 	}
 	
-	void JointCar(Car car, CarJoint joint, GameObject parent)
+	public void CarSkeleton(string path, Vector3 position)
 	{
-		GameObject carJoint = ModelCar(car, joint);
-							
-		if (carJoint != null)
+		//New p3d file from path
+		var carP3d = new P3DFile(path);
+		
+		var skeletonChunks = carP3d.GetChunksOfType<NetP3DLib.P3D.Chunks.SkeletonChunk>();
+		
+		foreach (var skeleton in skeletonChunks)
 		{
-			carJoint.transform.SetParent(parent.transform, true);
+			//New car
+			Car car = new Car();
+			car.name = skeleton.Name;
+			car.position = position + new Vector3(0, 1, 0);
+			
+			//Car skeleton
+			List<GameObject> carSkeleton = Skeleton(0, skeleton, car);
+			
+			if (carSkeleton != null)
+			{
+				//Empty parent
+				GameObject parent = new GameObject();
+				parent.transform.position = car.position;
+				parent.name = car.name;
+			
+				foreach (GameObject joint in carSkeleton)
+				{
+					joint.transform.SetParent(parent.transform);
+				}
+				
+				//Add to objects list
+				objects.Add(parent);
+			}
+			
+			//Debug if data exists
+			Debug.Log(path + ", position: " + position);
 		}
 	}
 }
