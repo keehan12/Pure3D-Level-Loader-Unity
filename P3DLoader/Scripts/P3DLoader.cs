@@ -2,6 +2,7 @@ using UnityEngine;
 using System.Collections.Generic;
 using System;
 using System.IO;
+using System.Xml;
 using NetP3DLib.P3D;
 
 [System.Serializable]
@@ -62,8 +63,9 @@ public class P3DLoader : MonoBehaviour
 	[Space(8)]
 	[Header("Models")]
 	public List<Level> levels;
+	public bool xml; //False: FBX, OBJ
 	public Vector3 levelChunkRotation; //Recommended: (0, 180, 0)
-	public Vector3 objectChunkRotation; //Optional: (90, 0, 0)
+	public Vector3 objectChunkRotation; //Recommended: (-90, 0, 0)
 	
 	[Space(8)]
 	[Header("Car")]
@@ -82,8 +84,20 @@ public class P3DLoader : MonoBehaviour
 			//Instantiate static mesh
 			if (Resources.Load("Level " + level + "/" + file))
 			{
-				GameObject obj = Instantiate(Resources.Load("Level " + level + "/" + file) as GameObject, new Vector3(0, 0, 0), Quaternion.Euler(levelChunkRotation));
-				objects.Add(obj);
+				if (xml == false)
+				{
+					GameObject obj = Instantiate(Resources.Load("Level " + level + "/" + file) as GameObject, new Vector3(0, 0, 0), Quaternion.Euler(levelChunkRotation));
+					
+					//Add to objects list
+					objects.Add(obj);
+				}
+				else
+				{
+					GameObject obj = GenerateMesh("Level " + level + "/", file, true);
+					
+					//Add to objects list
+					objects.Add(obj);
+				}
 			}
 			
 			//New p3d file from path
@@ -197,16 +211,28 @@ public class P3DLoader : MonoBehaviour
 								//Set position and rotation from matrix
 								Matrix4x4 matrix = new Matrix4x4(new Vector4(M11, M12, M13, M14), new Vector4(M21, M22, M23, M24), new Vector4(M31, M32, M33, M34), new Vector4(M41, M42, M43, M44));
 								Vector3 position = matrix.GetColumn(3);
-								Quaternion rotation = Quaternion.LookRotation(matrix.GetColumn(1), matrix.GetColumn(2));
+								Quaternion rotation = Quaternion.LookRotation(matrix.GetColumn(2), matrix.GetColumn(1));
 								
 								//Instantiate resources if available by Name
 								if (Resources.Load("Level " + level + "/" + name))
 								{
-									GameObject obj = Instantiate(Resources.Load("Level " + level + "/" + name) as GameObject, position, rotation);
-									obj.transform.localRotation = Quaternion.Euler(rotation.eulerAngles.x + objectChunkRotation.x, rotation.eulerAngles.y + objectChunkRotation.y, rotation.eulerAngles.z + objectChunkRotation.z);
-									
-									//Add to objects list
-									objects.Add(obj);
+									if (xml == false)
+									{
+										GameObject obj = Instantiate(Resources.Load("Level " + level + "/" + name) as GameObject, position, rotation);
+										obj.transform.localRotation = Quaternion.Euler(rotation.eulerAngles.x + objectChunkRotation.x, rotation.eulerAngles.y + objectChunkRotation.y, rotation.eulerAngles.z + objectChunkRotation.z);
+										
+										//Add to objects list
+										objects.Add(obj);
+									}
+									else
+									{
+										GameObject obj = GenerateMesh("Level " + level + "/", name, true);
+										obj.transform.position = position;
+										obj.transform.rotation = rotation;
+										
+										//Add to objects list
+										objects.Add(obj);
+									}
 								}
 								
 								//Debug if data exists
@@ -230,13 +256,27 @@ public class P3DLoader : MonoBehaviour
 			//Instantiate resources if available by name
 			if (Resources.Load("Level/coinShape_000"))
 			{
-				GameObject obj = Instantiate(Resources.Load("Level/coinShape_000") as GameObject, position, Quaternion.Euler(objectChunkRotation));
-				
-				//Add to objects list
-				objects.Add(obj);
-				
-				//Rotate upright
-				obj.transform.rotation = Quaternion.Euler(-90, 0, 0);
+				if (xml == false)
+				{
+					GameObject obj = Instantiate(Resources.Load("Level/coinShape_000") as GameObject, position, Quaternion.Euler(objectChunkRotation));
+					
+					//Add to objects list
+					objects.Add(obj);
+				}
+				else
+				{
+					GameObject obj = GenerateMesh("Level/", "coinShape_000", true);
+					obj.transform.position = position;
+					
+					//Rotate upright
+					if (xml == false)
+					{
+						obj.transform.rotation = Quaternion.Euler(-90, 0, 0);
+					}
+					
+					//Add to objects list
+					objects.Add(obj);
+				}
 			}
 			
 			//Debug if data exists
@@ -316,15 +356,24 @@ public class P3DLoader : MonoBehaviour
 			//Set position and rotation from matrix
 			Matrix4x4 matrix = new Matrix4x4(new Vector4(M11, M12, M13, M14), new Vector4(M21, M22, M23, M24), new Vector4(M31, M32, M33, M34), new Vector4(M41, M42, M43, M44));
 			Vector3 position = matrix.GetColumn(3);
-			Quaternion rotation = Quaternion.LookRotation(matrix.GetColumn(1), matrix.GetColumn(2));
+			Quaternion rotation = Quaternion.LookRotation(matrix.GetColumn(2), matrix.GetColumn(1));
 			
 			if (car == null)
 			{
 				//Instantiate resources if available by Name
 				if (Resources.Load("Level " + level + "/" + skeletonJoint.Name + "Shape"))
 				{
-					GameObject obj = Instantiate(Resources.Load("Level " + level + "/" + skeletonJoint.Name + "Shape") as GameObject, position, rotation);
-					obj.transform.localRotation = Quaternion.Euler(rotation.eulerAngles.x + objectChunkRotation.x, rotation.eulerAngles.y + objectChunkRotation.y, rotation.eulerAngles.z + objectChunkRotation.z);
+					if (xml == false)
+					{
+						GameObject obj = Instantiate(Resources.Load("Level " + level + "/" + skeletonJoint.Name + "Shape") as GameObject, position, rotation);
+						obj.transform.localRotation = Quaternion.Euler(rotation.eulerAngles.x + objectChunkRotation.x, rotation.eulerAngles.y + objectChunkRotation.y, rotation.eulerAngles.z + objectChunkRotation.z);
+					}
+					else
+					{
+						GameObject obj = GenerateMesh("Level " + level + "/", skeletonJoint.Name + "Shape", true);
+						obj.transform.position = position;
+						obj.transform.rotation = rotation;
+					}
 				}
 			}
 			else
@@ -340,7 +389,15 @@ public class P3DLoader : MonoBehaviour
 				GameObject parent = new GameObject();
 				parent.name = skeletonJoint.Name;
 				parent.transform.position = car.position + position;
-				parent.transform.rotation = Quaternion.Euler(rotation.eulerAngles.x + objectChunkRotation.x, rotation.eulerAngles.y + objectChunkRotation.y, rotation.eulerAngles.z + objectChunkRotation.z);;
+				
+				if (xml == false)
+				{
+					parent.transform.rotation = Quaternion.Euler(rotation.eulerAngles.x + objectChunkRotation.x, rotation.eulerAngles.y + objectChunkRotation.y, rotation.eulerAngles.z + objectChunkRotation.z);;
+				}
+				else
+				{
+					parent.transform.rotation = rotation;
+				}
 				
 				//Set custom parent
 				List<string> carsWithCustomParents = new List<string>();
@@ -357,7 +414,8 @@ public class P3DLoader : MonoBehaviour
 							JointCar(car, joint, parent);
 						}
 						
-						if (customParents[i].parent == skeletonJoint.Name) //Custom parents
+						//Custom parents
+						if (customParents[i].parent == skeletonJoint.Name)
 						{
 							if (customParents[i].child != skeletonJoint.Name)
 							{
@@ -421,11 +479,23 @@ public class P3DLoader : MonoBehaviour
 	{
 		if (Resources.Load("Cars/" + car.name + "/" + joint.model))
 		{
-			Quaternion rotation = Quaternion.Euler(joint.rotation.eulerAngles.x + objectChunkRotation.x, joint.rotation.eulerAngles.y + objectChunkRotation.y, joint.rotation.eulerAngles.z + objectChunkRotation.z);
-	
-			GameObject obj = Instantiate(Resources.Load("Cars/" + car.name + "/" + joint.model) as GameObject, car.position + joint.position, rotation);
+			Quaternion rotation = joint.rotation;
 			
-			return obj;
+			if (xml == false)
+			{
+				GameObject obj = Instantiate(Resources.Load("Cars/" + car.name + "/" + joint.model) as GameObject, car.position + joint.position, rotation);
+				obj.transform.rotation = Quaternion.Euler(joint.rotation.eulerAngles.x + objectChunkRotation.x, joint.rotation.eulerAngles.y + objectChunkRotation.y, joint.rotation.eulerAngles.z + objectChunkRotation.z);
+				
+				return obj;
+			}
+			else
+			{
+				GameObject obj = GenerateMesh("Cars/" + car.name + "/", joint.model, false);
+				obj.transform.position = car.position + joint.position;
+				obj.transform.rotation = rotation;
+				
+				return obj;
+			}
 		}
 		
 		return null;
@@ -467,5 +537,167 @@ public class P3DLoader : MonoBehaviour
 			//Debug if data exists
 			Debug.Log(path + ", position: " + position);
 		}
+	}
+	
+	//Generated mesh data
+	public class MeshData
+	{
+		public MeshMaterial material = new MeshMaterial();
+		public List<Vector3> vertices = new List<Vector3>();
+		public List<Vector2> uvs = new List<Vector2>();
+		public List<Color32> colors = new List<Color32>();
+		public List<int> triangles = new List<int>();
+	}
+	
+	//Generated mesh material
+	public class MeshMaterial
+	{
+		public string material;
+		public string texture;
+	}
+	
+	//Mesh generation
+	public GameObject GenerateMesh(string path, string file, bool color)
+	{
+		GameObject parent = new GameObject();
+		parent.name = file;
+		
+		TextAsset textAsset = Resources.Load(path + file) as TextAsset;
+		XmlTextReader reader = new XmlTextReader(new StringReader(textAsset.text));
+		
+		List<string> textures = new List<string>();
+		List<string> materials = new List<string>();
+		List<MeshData> data = new List<MeshData>();
+		int meshes = 0;
+		int index = 0;
+		
+		while (reader.Read())
+		{
+			if (reader.Name == "Shader" && reader.NodeType == XmlNodeType.Element && reader.Depth == 1)
+			{
+				materials.Add(reader.GetAttribute("Name"));
+				textures.Add(reader.GetAttribute("TextureName"));
+			}
+		}
+		
+		reader = new XmlTextReader(new StringReader(textAsset.text));
+		
+		while (reader.Read())
+		{
+			if (reader.Name == "Mesh" && reader.NodeType == XmlNodeType.Element && reader.Depth == 1)
+			{
+				meshes++;
+			}
+		}
+		
+		reader = new XmlTextReader(new StringReader(textAsset.text));
+		
+		while (reader.Read())
+		{
+			if (reader.Name == "Mesh" && reader.NodeType == XmlNodeType.Element && reader.Depth == 1)
+			{
+				while (reader.Read())
+				{
+					if (reader.Name == "Shader" && reader.NodeType == XmlNodeType.Element && reader.Depth == 2)
+					{
+						data.Add(new MeshData());
+						data[index].material.material = reader.GetAttribute("Name");
+						Debug.Log("MAT:" + data[index].material.material);
+						
+						while (reader.Read())
+						{
+						
+							if (reader.Name == "Vertex" && reader.NodeType == XmlNodeType.Element)
+							{
+								data[index].vertices.Add(new Vector3(
+								float.Parse(reader.GetAttribute("PositionX")),
+								float.Parse(reader.GetAttribute("PositionY")),
+								float.Parse(reader.GetAttribute("PositionZ"))
+								));
+								
+								data[index].uvs.Add(new Vector2(
+								float.Parse(reader.GetAttribute("U")),
+								float.Parse(reader.GetAttribute("V"))
+								));
+								
+								data[index].colors.Add(new Color32(
+								Convert.ToByte(reader.GetAttribute("Red")),
+								Convert.ToByte(reader.GetAttribute("Blue")),
+								Convert.ToByte(reader.GetAttribute("Green")),
+								Convert.ToByte(reader.GetAttribute("Alpha"))
+								));
+							}
+							
+							if (reader.Name == "Primitive" && reader.NodeType == XmlNodeType.Element)
+							{
+								
+								data[index].triangles.Add(Convert.ToInt32(reader.GetAttribute("Vertex1")));
+								data[index].triangles.Add(Convert.ToInt32(reader.GetAttribute("Vertex2")));
+								data[index].triangles.Add(Convert.ToInt32(reader.GetAttribute("Vertex3")));
+							}
+							
+							if (reader.Name == "Shader" && reader.NodeType == XmlNodeType.EndElement)
+							{
+								break;
+							}
+						}
+						
+						index++;
+					}
+				}
+				
+				if (reader.Name == "Mesh" && reader.NodeType == XmlNodeType.EndElement)
+				{
+					break;
+				}
+			}
+		}
+		
+		for (int i = 0; i < data.Count; i++)
+		{
+			Mesh mesh = new Mesh();
+			mesh.vertices = data[i].vertices.ToArray();
+			mesh.uv = data[i].uvs.ToArray();
+			mesh.triangles = data[i].triangles.ToArray();
+			
+			if (color == true)
+			{
+				mesh.colors32 = data[i].colors.ToArray();
+			}
+			
+			mesh.RecalculateBounds();
+			mesh.RecalculateNormals();
+			mesh.RecalculateTangents();
+			
+			GameObject obj = new GameObject();
+			obj.AddComponent<MeshFilter>();
+			obj.GetComponent<MeshFilter>().mesh = mesh;
+			obj.AddComponent<MeshRenderer>();
+			obj.AddComponent<MeshCollider>();
+			
+			for (int a = 0; a < materials.Count; a++)
+			{
+				if (materials[a].Contains(data[i].material.material))
+				{
+					data[i].material.texture = textures[a];
+				}
+			}
+			
+			obj.name = data[i].material.material;
+			
+			if (Resources.Load(path + data[i].material.texture))
+			{
+				Material material = new Material(Shader.Find("Custom/Opaque"));
+				material.name = data[i].material.material;
+				
+				obj.GetComponent<MeshRenderer>().material = material;
+				obj.GetComponent<MeshRenderer>().material.mainTexture = Resources.Load(path + data[i].material.texture) as Texture2D;
+			}
+			
+			obj.name = data[i].material.material;
+			obj.transform.SetParent(parent.transform);
+		}
+		
+		return parent;
 	}
 }
