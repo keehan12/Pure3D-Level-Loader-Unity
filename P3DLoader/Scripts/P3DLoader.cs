@@ -65,7 +65,7 @@ public class P3DLoader : MonoBehaviour
 	public List<Level> levels;
 	public bool xml; //False: FBX, OBJ
 	public Vector3 levelChunkRotation; //Recommended: (0, 180, 0)
-	public Vector3 objectChunkRotation; //Recommended: (-90, 0, 0)
+	public Vector3 objectChunkRotation; //Recommended: (-90, 180, 0)
 	
 	[Space(8)]
 	[Header("Car")]
@@ -74,6 +74,7 @@ public class P3DLoader : MonoBehaviour
 	
 	//Total objects
 	[HideInInspector] public List<GameObject> objects;
+	[HideInInspector] public List<ShaderData> shaders = new List<ShaderData>();
 	
 	public void LoadChunk(int level, string file)
     {
@@ -81,31 +82,20 @@ public class P3DLoader : MonoBehaviour
 		
 		if (File.Exists(path))
 		{
-			//Instantiate static mesh
-			if (Resources.Load("Level " + level + "/" + file))
-			{
-				if (xml == false)
-				{
-					GameObject obj = Instantiate(Resources.Load("Level " + level + "/" + file) as GameObject, new Vector3(0, 0, 0), Quaternion.Euler(levelChunkRotation));
-					
-					//Add to objects list
-					objects.Add(obj);
-				}
-				else
-				{
-					GameObject obj = GenerateMesh("Level " + level + "/", file, true);
-					
-					//Add to objects list
-					objects.Add(obj);
-				}
-			}
-			
 			//New p3d file from path
 			p3dFile = new P3DFile(path);
 			
 			//Read root chunks
 			if (p3dFile != null)
 			{
+				//Shader
+				var shaderChunks = p3dFile.GetChunksOfType<NetP3DLib.P3D.Chunks.ShaderChunk>();
+				
+				foreach (var chunk in shaderChunks)
+				{
+					ShaderZ(chunk);
+				}
+				
 				//Inst Stat Phys
 				var instStatPhysChunks = p3dFile.GetChunksOfType<NetP3DLib.P3D.Chunks.InstStatPhysChunk>();
 				
@@ -147,6 +137,25 @@ public class P3DLoader : MonoBehaviour
 				}
 				
 				Debug.Log("Found p3d: " + file);
+			}
+			
+			//Instantiate static mesh
+			if (Resources.Load("Level " + level + "/" + file))
+			{
+				if (xml == false)
+				{
+					GameObject obj = Instantiate(Resources.Load("Level " + level + "/" + file) as GameObject, new Vector3(0, 0, 0), Quaternion.Euler(levelChunkRotation));
+					
+					//Add to objects list
+					objects.Add(obj);
+				}
+				else
+				{
+					GameObject obj = GenerateMesh("Level " + level + "/", file, true);
+					
+					//Add to objects list
+					objects.Add(obj);
+				}
 			}
 		}
 		else
@@ -259,6 +268,7 @@ public class P3DLoader : MonoBehaviour
 				if (xml == false)
 				{
 					GameObject obj = Instantiate(Resources.Load("Level/coinShape_000") as GameObject, position, Quaternion.Euler(objectChunkRotation));
+					obj.transform.rotation = Quaternion.Euler(objectChunkRotation);
 					
 					//Add to objects list
 					objects.Add(obj);
@@ -267,12 +277,6 @@ public class P3DLoader : MonoBehaviour
 				{
 					GameObject obj = GenerateMesh("Level/", "coinShape_000", true);
 					obj.transform.position = position;
-					
-					//Rotate upright
-					if (xml == false)
-					{
-						obj.transform.rotation = Quaternion.Euler(-90, 0, 0);
-					}
 					
 					//Add to objects list
 					objects.Add(obj);
@@ -392,11 +396,11 @@ public class P3DLoader : MonoBehaviour
 				
 				if (xml == false)
 				{
-					parent.transform.rotation = Quaternion.Euler(rotation.eulerAngles.x + objectChunkRotation.x, rotation.eulerAngles.y + objectChunkRotation.y, rotation.eulerAngles.z + objectChunkRotation.z);;
+					parent.transform.localRotation = Quaternion.Euler(rotation.eulerAngles.x + objectChunkRotation.x, rotation.eulerAngles.y + objectChunkRotation.y, rotation.eulerAngles.z + objectChunkRotation.z);;
 				}
 				else
 				{
-					parent.transform.rotation = rotation;
+					parent.transform.localRotation = rotation;
 				}
 				
 				//Set custom parent
@@ -465,40 +469,58 @@ public class P3DLoader : MonoBehaviour
 		return joints;
 	}
 	
-	void JointCar(Car car, CarJoint joint, GameObject parent)
+	public class ShaderData
 	{
-		GameObject carJoint = ModelCar(car, joint);
-							
-		if (carJoint != null)
-		{
-			carJoint.transform.SetParent(parent.transform, true);
-		}
+		public string material;
+		public string texture;
+		public bool translucent;
+		public int alphaTest;
 	}
 	
-	GameObject ModelCar(Car car, CarJoint joint)
+	void ShaderZ(NetP3DLib.P3D.Chunks.ShaderChunk chunk)
 	{
-		if (Resources.Load("Cars/" + car.name + "/" + joint.model))
+		bool translucent = chunk.HasTranslucency;
+		
+		//ShaderTextureParameter
+		string shaderTextureParameterValue = "";
+		var shaderTextureParameterChunks = chunk.GetChunksOfType<NetP3DLib.P3D.Chunks.ShaderTextureParameterChunk>();
+		
+		foreach (var shaderTextureParameter in shaderTextureParameterChunks)
 		{
-			Quaternion rotation = joint.rotation;
-			
-			if (xml == false)
+			if (shaders.Count == 0)
 			{
-				GameObject obj = Instantiate(Resources.Load("Cars/" + car.name + "/" + joint.model) as GameObject, car.position + joint.position, rotation);
-				obj.transform.rotation = Quaternion.Euler(joint.rotation.eulerAngles.x + objectChunkRotation.x, joint.rotation.eulerAngles.y + objectChunkRotation.y, joint.rotation.eulerAngles.z + objectChunkRotation.z);
-				
-				return obj;
+				shaders.Add(new ShaderData { material = chunk.Name, texture = shaderTextureParameter.Value, translucent = translucent, alphaTest = 0 });
 			}
 			else
 			{
-				GameObject obj = GenerateMesh("Cars/" + car.name + "/", joint.model, false);
-				obj.transform.position = car.position + joint.position;
-				obj.transform.rotation = rotation;
-				
-				return obj;
+				for (int i = 0; i < shaders.Count; i++)
+				{
+					if (!shaders[i].material.Contains(chunk.Name))
+					{
+						shaderTextureParameterValue = shaderTextureParameter.Value;;
+					}
+				}
 			}
 		}
 		
-		return null;
+		if (shaderTextureParameterValue != "")
+		{
+			shaders.Add(new ShaderData { material = chunk.Name, texture = shaderTextureParameterValue, translucent = translucent, alphaTest = 0 });
+		}
+		
+		//ShaderIntegerParameter AlphaTest
+		var shaderIntegerParameterChunks = chunk.GetParamsOfType<NetP3DLib.P3D.Chunks.ShaderIntegerParameterChunk>("ATST");
+		
+		foreach (var shaderIntegerParameter in shaderIntegerParameterChunks)
+		{
+			for (int i = 0; i < shaders.Count; i++)
+			{
+				if (shaders[i].material == chunk.Name)
+				{
+					shaders[i].alphaTest = Convert.ToInt32(shaderIntegerParameter.Value);
+				}
+			}
+		}
 	}
 	
 	public void CarSkeleton(string path, Vector3 position)
@@ -539,6 +561,42 @@ public class P3DLoader : MonoBehaviour
 		}
 	}
 	
+	void JointCar(Car car, CarJoint joint, GameObject parent)
+	{
+		GameObject carJoint = ModelCar(car, joint);
+							
+		if (carJoint != null)
+		{
+			carJoint.transform.SetParent(parent.transform, true);
+		}
+	}
+	
+	GameObject ModelCar(Car car, CarJoint joint)
+	{
+		if (Resources.Load("Cars/" + car.name + "/" + joint.model))
+		{
+			Quaternion rotation = joint.rotation;
+			
+			if (xml == false)
+			{
+				GameObject obj = Instantiate(Resources.Load("Cars/" + car.name + "/" + joint.model) as GameObject, car.position + joint.position, rotation);
+				obj.transform.localRotation = Quaternion.Euler(rotation.eulerAngles.x + objectChunkRotation.x, rotation.eulerAngles.y + objectChunkRotation.y, rotation.eulerAngles.z + objectChunkRotation.z);
+				
+				return obj;
+			}
+			else
+			{
+				GameObject obj = GenerateMesh("Cars/" + car.name + "/", joint.model, false);
+				obj.transform.position = car.position + joint.position;
+				obj.transform.rotation = rotation;
+				
+				return obj;
+			}
+		}
+		
+		return null;
+	}
+	
 	//Generated mesh data
 	public class MeshData
 	{
@@ -552,8 +610,11 @@ public class P3DLoader : MonoBehaviour
 	//Generated mesh material
 	public class MeshMaterial
 	{
+		public string mesh;
 		public string material;
 		public string texture;
+		public bool translucent;
+		public int alphaTest;
 	}
 	
 	//Mesh generation
@@ -596,13 +657,15 @@ public class P3DLoader : MonoBehaviour
 		{
 			if (reader.Name == "Mesh" && reader.NodeType == XmlNodeType.Element && reader.Depth == 1)
 			{
+				string mesh = reader.GetAttribute("Name");
+				
 				while (reader.Read())
 				{
 					if (reader.Name == "Shader" && reader.NodeType == XmlNodeType.Element && reader.Depth == 2)
 					{
 						data.Add(new MeshData());
 						data[index].material.material = reader.GetAttribute("Name");
-						Debug.Log("MAT:" + data[index].material.material);
+						data[index].material.mesh = mesh;
 						
 						while (reader.Read())
 						{
@@ -677,24 +740,41 @@ public class P3DLoader : MonoBehaviour
 			
 			for (int a = 0; a < materials.Count; a++)
 			{
-				if (materials[a].Contains(data[i].material.material))
+				if (data[i].material.material == materials[a])
 				{
 					data[i].material.texture = textures[a];
 				}
 			}
 			
-			obj.name = data[i].material.material;
+			for (int a = 0; a < shaders.Count; a++)
+			{	
+				if (shaders[a].texture == data[i].material.texture)
+				{
+					data[i].material.alphaTest = shaders[a].alphaTest;
+					data[i].material.translucent = shaders[a].translucent;
+				}
+			}
 			
 			if (Resources.Load(path + data[i].material.texture))
 			{
 				Material material = new Material(Shader.Find("Custom/Opaque"));
-				material.name = data[i].material.material;
 				
+				if (data[i].material.translucent == true)
+				{
+					material.shader = Shader.Find("Custom/Transparent");
+				}
+				
+				if (data[i].material.alphaTest == 1)
+				{
+					material.shader = Shader.Find("Custom/AlphaTest");
+				}
+				
+				material.name = data[i].material.material;
 				obj.GetComponent<MeshRenderer>().material = material;
 				obj.GetComponent<MeshRenderer>().material.mainTexture = Resources.Load(path + data[i].material.texture) as Texture2D;
 			}
 			
-			obj.name = data[i].material.material;
+			obj.name = data[i].material.mesh;
 			obj.transform.SetParent(parent.transform);
 		}
 		
