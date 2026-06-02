@@ -18,6 +18,7 @@ Shader "Custom/AlphaTest"
 		
         LOD      200
         Lighting Off
+		Cull Off
  
         CGPROGRAM
         #pragma surface surf Lambert alphatest:_Cutoff

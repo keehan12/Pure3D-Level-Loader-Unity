@@ -17,6 +17,7 @@ Shader "Custom/Transparent"
 		
         LOD      200
         Lighting Off
+		Cull Off
  
         CGPROGRAM
         #pragma surface surf Lambert alpha:fade
@@ -34,7 +35,7 @@ Shader "Custom/Transparent"
         {
             fixed4 c = tex2D(_MainTex, IN.uv_MainTex) * _Color;
             o.Albedo = c.rgb * IN.vertexColor;
-            o.Alpha = c.a;
+            o.Alpha = c.a * IN.vertexColor.a;
         }
 		
         ENDCG
