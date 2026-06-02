@@ -72,6 +72,14 @@ public class P3DLoader : MonoBehaviour
 	public List<CarWheels> wheels;
 	public List<CustomParent> customParents;
 	
+	[Space(8)]
+	[Header("Other")]
+	public bool billboards;
+	
+	//Temporary
+	[HideInInspector] public List<string> textures = new List<string>();
+	[HideInInspector] public List<string> materials = new List<string>();
+	
 	//Total objects
 	[HideInInspector] public List<GameObject> objects;
 	[HideInInspector] public List<ShaderData> shaders = new List<ShaderData>();
@@ -134,6 +142,17 @@ public class P3DLoader : MonoBehaviour
 				foreach (var chunk in skeletonChunks)
 				{
 					Skeleton(level, chunk, null);
+				}
+				
+				//Old Billboard Quad Group
+				if (billboards == true)
+				{
+					var billboardQuadGroup = p3dFile.GetChunksOfType<NetP3DLib.P3D.Chunks.OldBillboardQuadGroupChunk>();
+					
+					foreach (var chunk in billboardQuadGroup)
+					{
+						BillboardQuadGroup(level, chunk);
+					}
 				}
 				
 				Debug.Log("Found p3d: " + file);
@@ -282,9 +301,6 @@ public class P3DLoader : MonoBehaviour
 					objects.Add(obj);
 				}
 			}
-			
-			//Debug if data exists
-			Debug.Log(chunk.Name + ", position: " + position);
 		}
 		
 		//Locator is Car Start
@@ -475,6 +491,7 @@ public class P3DLoader : MonoBehaviour
 		public string texture;
 		public bool translucent;
 		public int alphaTest;
+		public int lighting;
 	}
 	
 	void ShaderZ(NetP3DLib.P3D.Chunks.ShaderChunk chunk)
@@ -509,7 +526,7 @@ public class P3DLoader : MonoBehaviour
 		}
 		
 		//ShaderIntegerParameter AlphaTest
-		var shaderIntegerParameterChunks = chunk.GetParamsOfType<NetP3DLib.P3D.Chunks.ShaderIntegerParameterChunk>("ATST");
+		var shaderIntegerParameterChunks = chunk.GetChunksOfType<NetP3DLib.P3D.Chunks.ShaderIntegerParameterChunk>();
 		
 		foreach (var shaderIntegerParameter in shaderIntegerParameterChunks)
 		{
@@ -517,9 +534,78 @@ public class P3DLoader : MonoBehaviour
 			{
 				if (shaders[i].material == chunk.Name)
 				{
-					shaders[i].alphaTest = Convert.ToInt32(shaderIntegerParameter.Value);
+					//Debug.Log("Param: " + shaderIntegerParameter.Param + ", Value: " + shaderIntegerParameter.Value);
+					if (shaderIntegerParameter.Param == "ATST")
+					{
+						shaders[i].alphaTest = Convert.ToInt32(shaderIntegerParameter.Value);
+					}
+					
+					if (shaderIntegerParameter.Param == "LIT")
+					{
+						shaders[i].lighting = Convert.ToInt32(shaderIntegerParameter.Value);
+					}
 				}
 			}
+		}
+	}
+	
+	void BillboardQuadGroup(int level, NetP3DLib.P3D.Chunks.OldBillboardQuadGroupChunk chunk)
+	{
+		//Instance List
+		var billboardQuadChunks = chunk.GetChunksOfType<NetP3DLib.P3D.Chunks.OldBillboardQuadChunk>();
+		
+		foreach (var billboardQuad in billboardQuadChunks)
+		{
+			string shader = chunk.Shader;
+			string texture = "";
+		
+			GameObject billboard = Instantiate(Resources.Load("Source/Billboard") as GameObject);
+			
+			//Billboard translation
+			Vector3 position = new Vector3(billboardQuad.Translation.X, billboardQuad.Translation.Y, billboardQuad.Translation.Z);
+			
+			//Billboard scale
+			Vector2 scale = new Vector2(billboardQuad.Width, billboardQuad.Height);
+			
+			//Transform
+			billboard.transform.position = position;
+			billboard.transform.localScale = scale;
+			
+			//Texture from data
+			for (int a = 0; a < shaders.Count; a++)
+			{
+				if (shader == shaders[a].material)
+				{
+					texture = shaders[a].texture;
+					
+					if (Resources.Load("Level " + level + "/" + texture))
+					{
+						Material material = new Material(Shader.Find("Custom/Opaque"));
+						
+						if (shaders[a].translucent == true)
+						{
+							material.shader = Shader.Find("Custom/Transparent");
+							
+							if (shaders[a].lighting == 1 && shaders[a].alphaTest == 0)
+							{
+								material.color = new Color(material.color.r, material.color.g, material.color.b, 0.5f);
+							}
+						}
+						
+						if (shaders[a].alphaTest == 1)
+						{
+							material.shader = Shader.Find("Custom/AlphaTest");
+						}
+						
+						material.name = shader;
+						billboard.transform.GetChild(0).GetComponent<MeshRenderer>().material = material;
+						billboard.transform.GetChild(0).GetComponent<MeshRenderer>().material.mainTexture = Resources.Load("Level " + level + "/" + texture) as Texture2D;
+					}
+				}
+			}
+			
+			//Add component
+			billboard.AddComponent<Sprite>();
 		}
 	}
 	
@@ -615,6 +701,7 @@ public class P3DLoader : MonoBehaviour
 		public string texture;
 		public bool translucent;
 		public int alphaTest;
+		public int lighting;
 	}
 	
 	//Mesh generation
@@ -626,8 +713,6 @@ public class P3DLoader : MonoBehaviour
 		TextAsset textAsset = Resources.Load(path + file) as TextAsset;
 		XmlTextReader reader = new XmlTextReader(new StringReader(textAsset.text));
 		
-		List<string> textures = new List<string>();
-		List<string> materials = new List<string>();
 		List<MeshData> data = new List<MeshData>();
 		int meshes = 0;
 		int index = 0;
@@ -669,7 +754,6 @@ public class P3DLoader : MonoBehaviour
 						
 						while (reader.Read())
 						{
-						
 							if (reader.Name == "Vertex" && reader.NodeType == XmlNodeType.Element)
 							{
 								data[index].vertices.Add(new Vector3(
@@ -693,7 +777,6 @@ public class P3DLoader : MonoBehaviour
 							
 							if (reader.Name == "Primitive" && reader.NodeType == XmlNodeType.Element)
 							{
-								
 								data[index].triangles.Add(Convert.ToInt32(reader.GetAttribute("Vertex1")));
 								data[index].triangles.Add(Convert.ToInt32(reader.GetAttribute("Vertex2")));
 								data[index].triangles.Add(Convert.ToInt32(reader.GetAttribute("Vertex3")));
@@ -738,6 +821,7 @@ public class P3DLoader : MonoBehaviour
 			obj.AddComponent<MeshRenderer>();
 			obj.AddComponent<MeshCollider>();
 			
+			//Texture from xml
 			for (int a = 0; a < materials.Count; a++)
 			{
 				if (data[i].material.material == materials[a])
@@ -746,12 +830,19 @@ public class P3DLoader : MonoBehaviour
 				}
 			}
 			
+			//Shader
 			for (int a = 0; a < shaders.Count; a++)
 			{	
 				if (shaders[a].texture == data[i].material.texture)
 				{
-					data[i].material.alphaTest = shaders[a].alphaTest;
 					data[i].material.translucent = shaders[a].translucent;
+					data[i].material.alphaTest = shaders[a].alphaTest;
+					data[i].material.lighting = shaders[a].lighting;
+				}
+				
+				if (data[i].material.material == shaders[a].material)
+				{
+					data[i].material.texture = shaders[a].texture;
 				}
 			}
 			
@@ -762,6 +853,11 @@ public class P3DLoader : MonoBehaviour
 				if (data[i].material.translucent == true)
 				{
 					material.shader = Shader.Find("Custom/Transparent");
+					
+					if (data[i].material.lighting == 1 && data[i].material.alphaTest == 0)
+					{
+						material.color = new Color(material.color.r, material.color.g, material.color.b, 0.5f);
+					}
 				}
 				
 				if (data[i].material.alphaTest == 1)
