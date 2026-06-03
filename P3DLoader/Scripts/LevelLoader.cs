@@ -57,6 +57,7 @@ public class LevelLoader : MonoBehaviour
 			}
 			
 			GetComponent<P3DLoader>().objects = new List<GameObject>();
+			GetComponent<P3DLoader>().shaders = new List<P3DLoader.ShaderData>();
 		}
 	}
 	

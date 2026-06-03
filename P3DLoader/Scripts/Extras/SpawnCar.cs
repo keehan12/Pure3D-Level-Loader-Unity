@@ -1,6 +1,7 @@
 using UnityEngine;
 using System.IO;
 using System.Collections.Generic;
+using NetP3DLib.P3D;
 
 public class SpawnCar : MonoBehaviour
 {
@@ -13,12 +14,20 @@ public class SpawnCar : MonoBehaviour
 		{
 			spawn = GameObject.Find("Spawn").transform;
 		}
-		
-		//Input controls
-		if (Input.GetKeyDown(KeyCode.Alpha1))
+		else
 		{
-			cars.Add("rocke_v");
-			Spawn(spawn.position);
+			//Input controls
+			if (Input.GetKeyDown(KeyCode.Alpha1))
+			{
+				cars.Add("rocke_v");
+				Spawn(spawn.position - new Vector3(0, 2, 0));
+			}
+			
+			if (Input.GetKeyDown(KeyCode.Alpha2))
+			{
+				cars.Add("sedanA");
+				Spawn(spawn.position - new Vector3(0, 2, 0));
+			}
 		}
 	}
 	
@@ -41,7 +50,10 @@ public class SpawnCar : MonoBehaviour
 		{
 			string path = GetComponent<P3DLoader>().gameArtPath + "/cars/" + name + ".p3d";
 			
-			GetComponent<P3DLoader>().CarSkeleton(path, position);
+			//New p3d file from path
+			P3DFile p3dFile = new P3DFile(path);
+			
+			GetComponent<P3DLoader>().CarSkeleton(p3dFile, position);
 		}
     }
 }

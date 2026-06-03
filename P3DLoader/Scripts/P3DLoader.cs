@@ -76,16 +76,13 @@ public class P3DLoader : MonoBehaviour
 	[Header("Other")]
 	public bool billboards;
 	
-	//Temporary
-	[HideInInspector] public List<string> textures = new List<string>();
-	[HideInInspector] public List<string> materials = new List<string>();
-	
 	//Total objects
 	[HideInInspector] public List<GameObject> objects;
 	[HideInInspector] public List<ShaderData> shaders = new List<ShaderData>();
 	
 	public void LoadChunk(int level, string file)
     {
+		LoadShaders(level, file);
 		string path = gameArtPath + "/" + file + ".p3d";
 		
 		if (File.Exists(path))
@@ -96,14 +93,6 @@ public class P3DLoader : MonoBehaviour
 			//Read root chunks
 			if (p3dFile != null)
 			{
-				//Shader
-				var shaderChunks = p3dFile.GetChunksOfType<NetP3DLib.P3D.Chunks.ShaderChunk>();
-				
-				foreach (var chunk in shaderChunks)
-				{
-					ShaderZ(chunk);
-				}
-				
 				//Inst Stat Phys
 				var instStatPhysChunks = p3dFile.GetChunksOfType<NetP3DLib.P3D.Chunks.InstStatPhysChunk>();
 				
@@ -182,6 +171,114 @@ public class P3DLoader : MonoBehaviour
 			Debug.Log("No p3d: " + file);
 		}
     }
+	
+	void LoadShaders(int level, string file)
+	{
+		string path = gameArtPath + "/" + file + ".p3d";
+		
+		if (File.Exists(path))
+		{
+			//New p3d file from path
+			p3dFile = new P3DFile(path);
+			
+			//Read root chunks
+			if (p3dFile != null)
+			{
+				//Shader - levels
+				var shaderChunks = p3dFile.GetChunksOfType<NetP3DLib.P3D.Chunks.ShaderChunk>();
+				
+				foreach (var chunk in shaderChunks)
+				{
+					Shaders(chunk);
+				}
+			}
+		}
+		
+		//Level folder
+		path = gameArtPath + "/missions/level0" + level + "/level" + ".p3d";
+		
+		if (File.Exists(path))
+		{
+			//New p3d file from path
+			p3dFile = new P3DFile(path);
+			
+			//Read root chunks
+			if (p3dFile != null)
+			{
+				//Shader - levels
+				var shaderChunks = p3dFile.GetChunksOfType<NetP3DLib.P3D.Chunks.ShaderChunk>();
+				
+				foreach (var chunk in shaderChunks)
+				{
+					Shaders(chunk);
+				}
+			}
+		}
+	}
+	
+	public class ShaderData
+	{
+		public string material;
+		public string texture;
+		public bool translucent;
+		public int alphaTest;
+		public int lighting;
+	}
+	
+	void Shaders(NetP3DLib.P3D.Chunks.ShaderChunk chunk)
+	{
+		bool translucent = chunk.HasTranslucency;
+		
+		//ShaderTextureParameter
+		string shaderTextureParameterValue = "";
+		var shaderTextureParameterChunks = chunk.GetChunksOfType<NetP3DLib.P3D.Chunks.ShaderTextureParameterChunk>();
+		foreach (var shaderTextureParameter in shaderTextureParameterChunks)
+		{
+			bool contains = false;
+			
+			for (int i = 0; i < shaders.Count; i++)
+			{
+				if (shaders[i].material.Equals(chunk.Name))
+				{
+					contains = true;
+				}
+			}
+			
+			ShaderData shader = (new ShaderData { material = chunk.Name, texture = shaderTextureParameter.Value, translucent = translucent, alphaTest = Convert.ToInt32(chunk.GetIntegerParameter("ATST")), lighting = Convert.ToInt32(chunk.GetIntegerParameter("LIT")) });
+			
+			if (contains == false)
+			{
+				if (shader.texture != "EnvMap.bmp")
+				{
+					shaders.Add(shader);
+				}
+			}
+		}
+	}
+	
+	Material ShaderZ(MeshData data)
+	{
+		Material material = new Material(Shader.Find("Custom/Opaque"));
+				
+		if (data.material.translucent == true)
+		{
+			material.shader = Shader.Find("Custom/Transparent");
+			
+			if (data.material.lighting == 1 && data.material.alphaTest == 0)
+			{
+				material.color = new Color(material.color.r, material.color.g, material.color.b, 0.5f);
+			}
+		}
+		
+		if (data.material.alphaTest == 1)
+		{
+			material.shader = Shader.Find("Custom/AlphaTest");
+		}
+		
+		material.name = data.material.material;
+		
+		return material;
+	}
 	
 	void InstanceList(int level, Chunk chunk, string name)
 	{
@@ -338,7 +435,10 @@ public class P3DLoader : MonoBehaviour
 			//Car Skeleton
 			if (path != "")
 			{
-				CarSkeleton(path, position);
+				//New p3d file from path
+				P3DFile carP3D = new P3DFile(path);
+				
+				CarSkeleton(carP3D, position);
 			}
 		}
 	}
@@ -387,12 +487,18 @@ public class P3DLoader : MonoBehaviour
 					{
 						GameObject obj = Instantiate(Resources.Load("Level " + level + "/" + skeletonJoint.Name + "Shape") as GameObject, position, rotation);
 						obj.transform.localRotation = Quaternion.Euler(rotation.eulerAngles.x + objectChunkRotation.x, rotation.eulerAngles.y + objectChunkRotation.y, rotation.eulerAngles.z + objectChunkRotation.z);
+						
+						//Add to objects list
+						objects.Add(obj);
 					}
 					else
 					{
 						GameObject obj = GenerateMesh("Level " + level + "/", skeletonJoint.Name + "Shape", true);
 						obj.transform.position = position;
 						obj.transform.rotation = rotation;
+						
+						//Add to objects list
+						objects.Add(obj);
 					}
 				}
 			}
@@ -476,6 +582,9 @@ public class P3DLoader : MonoBehaviour
 				
 				//Add joint to parent GameObject list
 				joints.Add(parent);
+				
+				//Add to objects list
+				objects.Add(parent);
 			}
 			
 			//Debug if data exists
@@ -483,70 +592,6 @@ public class P3DLoader : MonoBehaviour
 		}
 		
 		return joints;
-	}
-	
-	public class ShaderData
-	{
-		public string material;
-		public string texture;
-		public bool translucent;
-		public int alphaTest;
-		public int lighting;
-	}
-	
-	void ShaderZ(NetP3DLib.P3D.Chunks.ShaderChunk chunk)
-	{
-		bool translucent = chunk.HasTranslucency;
-		
-		//ShaderTextureParameter
-		string shaderTextureParameterValue = "";
-		var shaderTextureParameterChunks = chunk.GetChunksOfType<NetP3DLib.P3D.Chunks.ShaderTextureParameterChunk>();
-		
-		foreach (var shaderTextureParameter in shaderTextureParameterChunks)
-		{
-			if (shaders.Count == 0)
-			{
-				shaders.Add(new ShaderData { material = chunk.Name, texture = shaderTextureParameter.Value, translucent = translucent, alphaTest = 0 });
-			}
-			else
-			{
-				for (int i = 0; i < shaders.Count; i++)
-				{
-					if (!shaders[i].material.Contains(chunk.Name))
-					{
-						shaderTextureParameterValue = shaderTextureParameter.Value;;
-					}
-				}
-			}
-		}
-		
-		if (shaderTextureParameterValue != "")
-		{
-			shaders.Add(new ShaderData { material = chunk.Name, texture = shaderTextureParameterValue, translucent = translucent, alphaTest = 0 });
-		}
-		
-		//ShaderIntegerParameter AlphaTest
-		var shaderIntegerParameterChunks = chunk.GetChunksOfType<NetP3DLib.P3D.Chunks.ShaderIntegerParameterChunk>();
-		
-		foreach (var shaderIntegerParameter in shaderIntegerParameterChunks)
-		{
-			for (int i = 0; i < shaders.Count; i++)
-			{
-				if (shaders[i].material == chunk.Name)
-				{
-					//Debug.Log("Param: " + shaderIntegerParameter.Param + ", Value: " + shaderIntegerParameter.Value);
-					if (shaderIntegerParameter.Param == "ATST")
-					{
-						shaders[i].alphaTest = Convert.ToInt32(shaderIntegerParameter.Value);
-					}
-					
-					if (shaderIntegerParameter.Param == "LIT")
-					{
-						shaders[i].lighting = Convert.ToInt32(shaderIntegerParameter.Value);
-					}
-				}
-			}
-		}
 	}
 	
 	void BillboardQuadGroup(int level, NetP3DLib.P3D.Chunks.OldBillboardQuadGroupChunk chunk)
@@ -606,15 +651,23 @@ public class P3DLoader : MonoBehaviour
 			
 			//Add component
 			billboard.AddComponent<Sprite>();
+			
+			//Add to objects list
+			objects.Add(billboard);
 		}
 	}
 	
-	public void CarSkeleton(string path, Vector3 position)
+	public void CarSkeleton(P3DFile carP3D, Vector3 position)
 	{
-		//New p3d file from path
-		var carP3d = new P3DFile(path);
+		//Car shaders
+		var shaderChunks = carP3D.GetChunksOfType<NetP3DLib.P3D.Chunks.ShaderChunk>();
 		
-		var skeletonChunks = carP3d.GetChunksOfType<NetP3DLib.P3D.Chunks.SkeletonChunk>();
+		foreach (var chunk in shaderChunks)
+		{
+			Shaders(chunk);
+		}
+		
+		var skeletonChunks = carP3D.GetChunksOfType<NetP3DLib.P3D.Chunks.SkeletonChunk>();
 		
 		foreach (var skeleton in skeletonChunks)
 		{
@@ -643,7 +696,7 @@ public class P3DLoader : MonoBehaviour
 			}
 			
 			//Debug if data exists
-			Debug.Log(path + ", position: " + position);
+			Debug.Log(car.name + ", position: " + position);
 		}
 	}
 	
@@ -697,6 +750,7 @@ public class P3DLoader : MonoBehaviour
 	public class MeshMaterial
 	{
 		public string mesh;
+		public bool color;
 		public string material;
 		public string texture;
 		public bool translucent;
@@ -716,17 +770,6 @@ public class P3DLoader : MonoBehaviour
 		List<MeshData> data = new List<MeshData>();
 		int meshes = 0;
 		int index = 0;
-		
-		while (reader.Read())
-		{
-			if (reader.Name == "Shader" && reader.NodeType == XmlNodeType.Element && reader.Depth == 1)
-			{
-				materials.Add(reader.GetAttribute("Name"));
-				textures.Add(reader.GetAttribute("TextureName"));
-			}
-		}
-		
-		reader = new XmlTextReader(new StringReader(textAsset.text));
 		
 		while (reader.Read())
 		{
@@ -806,11 +849,6 @@ public class P3DLoader : MonoBehaviour
 			mesh.uv = data[i].uvs.ToArray();
 			mesh.triangles = data[i].triangles.ToArray();
 			
-			if (color == true)
-			{
-				mesh.colors32 = data[i].colors.ToArray();
-			}
-			
 			mesh.RecalculateBounds();
 			mesh.RecalculateNormals();
 			mesh.RecalculateTangents();
@@ -821,51 +859,26 @@ public class P3DLoader : MonoBehaviour
 			obj.AddComponent<MeshRenderer>();
 			obj.AddComponent<MeshCollider>();
 			
-			//Texture from xml
-			for (int a = 0; a < materials.Count; a++)
-			{
-				if (data[i].material.material == materials[a])
-				{
-					data[i].material.texture = textures[a];
-				}
-			}
-			
 			//Shader
 			for (int a = 0; a < shaders.Count; a++)
 			{	
-				if (shaders[a].texture == data[i].material.texture)
-				{
-					data[i].material.translucent = shaders[a].translucent;
-					data[i].material.alphaTest = shaders[a].alphaTest;
-					data[i].material.lighting = shaders[a].lighting;
-				}
-				
 				if (data[i].material.material == shaders[a].material)
 				{
 					data[i].material.texture = shaders[a].texture;
+					data[i].material.translucent = shaders[a].translucent;
+					data[i].material.alphaTest = shaders[a].alphaTest;
+					data[i].material.lighting = shaders[a].lighting;
+					
+					if (data[i].material.lighting == 0)
+					{
+						mesh.colors32 = data[i].colors.ToArray();
+					}
 				}
 			}
 			
 			if (Resources.Load(path + data[i].material.texture))
 			{
-				Material material = new Material(Shader.Find("Custom/Opaque"));
-				
-				if (data[i].material.translucent == true)
-				{
-					material.shader = Shader.Find("Custom/Transparent");
-					
-					if (data[i].material.lighting == 1 && data[i].material.alphaTest == 0)
-					{
-						material.color = new Color(material.color.r, material.color.g, material.color.b, 0.5f);
-					}
-				}
-				
-				if (data[i].material.alphaTest == 1)
-				{
-					material.shader = Shader.Find("Custom/AlphaTest");
-				}
-				
-				material.name = data[i].material.material;
+				Material material = ShaderZ(data[i]);
 				obj.GetComponent<MeshRenderer>().material = material;
 				obj.GetComponent<MeshRenderer>().material.mainTexture = Resources.Load(path + data[i].material.texture) as Texture2D;
 			}
