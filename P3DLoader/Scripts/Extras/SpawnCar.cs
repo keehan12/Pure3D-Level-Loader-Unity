@@ -53,7 +53,7 @@ public class SpawnCar : MonoBehaviour
 			//New p3d file from path
 			P3DFile p3dFile = new P3DFile(path);
 			
-			GetComponent<P3DLoader>().CarSkeleton(p3dFile, position);
+			GetComponent<P3DLoader>().CarSkeleton(name, p3dFile, position);
 		}
     }
 }
