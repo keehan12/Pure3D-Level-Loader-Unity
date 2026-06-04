@@ -57,7 +57,7 @@ public class LevelLoader : MonoBehaviour
 			}
 			
 			GetComponent<P3DLoader>().objects = new List<GameObject>();
-			GetComponent<P3DLoader>().shaders = new List<P3DLoader.ShaderData>();
+			GetComponent<P3DLoader>().shaders = new List<P3DLoader.ShadersList>();
 		}
 	}
 	
@@ -69,6 +69,8 @@ public class LevelLoader : MonoBehaviour
 			{
 				if (GetComponent<P3DLoader>().levels[level - 1].files.Count > 0)
 				{
+					GetComponent<P3DLoader>().LoadMissionsShaders(level);
+					
 					for (int i = 0; i < GetComponent<P3DLoader>().levels[level - 1].files.Count; i++)
 					{
 						GetComponent<P3DLoader>().LoadChunk(level, GetComponent<P3DLoader>().levels[level - 1].files[i]);
