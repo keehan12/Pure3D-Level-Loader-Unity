@@ -785,8 +785,7 @@ public class P3DLoader : MonoBehaviour
 		public bool translucent;
 		public int alphaTest;
 		public int lighting;
-	}
-	
+	}	
 	//Mesh generation
 	public GameObject GenerateMesh(string path, string file, string name)
 	{
@@ -879,25 +878,22 @@ public class P3DLoader : MonoBehaviour
 			
 			//Shader
 			for (int a = 0; a < shaders.Count; a++)
-			{	
-				if (shaders[a].file == name)
+			{
+				for (int b = 0; b < shaders[a].shader.Count; b++)
 				{
-					for (int b = 0; b < shaders[a].shader.Count; b++)
+					MeshShader(shaders[a].shader[b], data[i].material);
+					
+					//Override with shader from file if it exists
+					if (shaders[a].file == name)
 					{
-						if (data[i].material.material == shaders[a].shader[b].material)
-						{
-							data[i].material.texture = shaders[a].shader[b].texture;
-							data[i].material.translucent = shaders[a].shader[b].translucent;
-							data[i].material.alphaTest = shaders[a].shader[b].alphaTest;
-							data[i].material.lighting = shaders[a].shader[b].lighting;
-							
-							if (data[i].material.lighting == 0)
-							{
-								mesh.colors32 = data[i].colors.ToArray();
-							}
-						}
+						MeshShader(shaders[a].shader[b], data[i].material);
 					}
 				}
+			}
+			
+			if (data[i].material.lighting == 0)
+			{
+				mesh.colors32 = data[i].colors.ToArray();
 			}
 			
 			if (Resources.Load(path + data[i].material.texture))
@@ -912,5 +908,16 @@ public class P3DLoader : MonoBehaviour
 		}
 		
 		return parent;
+	}
+	
+	void MeshShader(ShaderData shader, MeshMaterial material)
+	{
+		if (material.material == shader.material)
+		{
+			material.texture = shader.texture;
+			material.translucent = shader.translucent;
+			material.alphaTest = shader.alphaTest;
+			material.lighting = shader.lighting;
+		}
 	}
 }
