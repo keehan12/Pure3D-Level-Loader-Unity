@@ -99,7 +99,7 @@ public class P3DLoader : MonoBehaviour
 				
 				foreach (var chunk in instStatPhysChunks)
 				{
-					InstanceList(level, chunk, chunk.Name, file);
+					InstStatPhys(level, chunk, file);
 				}
 				
 				//Dyna Phys
@@ -107,7 +107,7 @@ public class P3DLoader : MonoBehaviour
 				
 				foreach (var chunk in dynaPhysChunks)
 				{
-					InstanceList(level, chunk, chunk.Name, file);
+					DynaPhys(level, chunk, file);
 				}
 				
 				//Anim Dyna Phys
@@ -115,7 +115,7 @@ public class P3DLoader : MonoBehaviour
 				
 				foreach (var chunk in animDynaPhysChunks)
 				{
-					InstanceList(level, chunk, chunk.Name, file);
+					AnimDynaPhys(level, chunk, file);
 				}
 				
 				//Locator
@@ -160,7 +160,7 @@ public class P3DLoader : MonoBehaviour
 				}
 				else
 				{
-					GameObject obj = GenerateMesh("Level " + level + "/", file, file);
+					GameObject obj = GenerateMesh("Level " + level + "/", file, file, "");
 					
 					//Add to objects list
 					objects.Add(obj);
@@ -302,7 +302,76 @@ public class P3DLoader : MonoBehaviour
 		return material;
 	}
 	
-	void InstanceList(int level, Chunk chunk, string name, string p3dName)
+	void AnimDynaPhys(int level, Chunk chunk, string p3dName)
+	{
+		//Anim Obj Wrapper
+		var animObjWrapperChunks = chunk.GetChunksOfType<NetP3DLib.P3D.Chunks.AnimObjWrapperChunk>();
+			
+		foreach (var animObjWrapper in animObjWrapperChunks)
+		{
+			//Composite Drawable
+			var compositeDrawableChunks = animObjWrapper.GetChunksOfType<NetP3DLib.P3D.Chunks.CompositeDrawableChunk>();
+			
+			foreach (var compositeDrawable in compositeDrawableChunks)
+			{
+				//Get Prop List
+				CompositeDrawablePropList(level, chunk, compositeDrawable, p3dName, animObjWrapper.Name);
+			}
+		}
+	}
+	
+	void InstStatPhys(int level, NetP3DLib.P3D.Chunks.InstStatPhysChunk chunk, string p3dName)
+	{
+		//Get mesh from Inst Stat Phys
+		GetMesh(level, chunk, chunk.Name, p3dName, null, chunk.Name);
+	}
+	
+	void DynaPhys(int level, NetP3DLib.P3D.Chunks.DynaPhysChunk chunk, string p3dName)
+	{
+		//Get mesh from Dyna Phys
+		GetMesh(level, chunk, chunk.Name, p3dName, null, chunk.Name);
+	}
+	
+	void CompositeDrawablePropList(int level, Chunk chunk, NetP3DLib.P3D.Chunks.CompositeDrawableChunk compositeDrawable, string p3dName, string name)
+	{
+		//Composite Drawable Prop List
+		var compositeDrawablePropListChunks = compositeDrawable.GetChunksOfType<NetP3DLib.P3D.Chunks.CompositeDrawablePropListChunk>();
+		
+		foreach (var compositeDrawablePropList in compositeDrawablePropListChunks)
+		{
+			//Composite Drawable Prop
+			var compositeDrawablePropChunks = compositeDrawablePropList.GetChunksOfType<NetP3DLib.P3D.Chunks.CompositeDrawablePropChunk>();
+			
+			//Parent
+			GameObject parent = new GameObject();
+			parent.name = name;
+			
+			foreach (var compositeDrawableProp in compositeDrawablePropChunks)
+			{
+				//Get mesh from Composite Drawable
+				GetMesh(level, chunk, name, p3dName, parent, compositeDrawableProp.Name);
+			}
+		}
+	}
+	
+	void GetMesh(int level, Chunk chunk, string name, string p3dName, GameObject parent, string file)
+	{
+		if (Resources.Load("Level " + level + "/" + name + "/" + file))
+		{
+			string path = "Level " + level + "/" + name + "/";
+			string fallback = "Level " + level + "/";
+			
+			InstanceList(chunk, path, file, p3dName, fallback, parent);
+		}
+		else if (Resources.Load("Level " + level + "/" + file))
+		{
+			string path = "Level " + level + "/";
+			
+			InstanceList(chunk, path, file, p3dName, path, parent);
+		}
+	}
+	
+	void InstanceList(Chunk chunk, string path, string file, string p3dName, string fallback, GameObject parent)
 	{
 		//Instance List
 		var instanceListChunks = chunk.GetChunksOfType<NetP3DLib.P3D.Chunks.InstanceListChunk>();
@@ -360,26 +429,38 @@ public class P3DLoader : MonoBehaviour
 								Vector3 position = matrix.GetColumn(3);
 								Quaternion rotation = Quaternion.LookRotation(matrix.GetColumn(2), matrix.GetColumn(1));
 								
-								//Instantiate resources if available by Name
-								if (Resources.Load("Level " + level + "/" + name))
+								if (parent != null)
 								{
-									if (xml == false)
+									parent.transform.position = position;
+								}
+								
+								//Instantiate resources if available by Name
+								if (xml == false)
+								{
+									GameObject obj = Instantiate(Resources.Load(path + file) as GameObject, new Vector3(0, 0, 0), Quaternion.Euler(levelChunkRotation));
+									obj.transform.localRotation = Quaternion.Euler(rotation.eulerAngles.x + objectChunkRotation.x, rotation.eulerAngles.y + objectChunkRotation.y, rotation.eulerAngles.z + objectChunkRotation.z);
+									
+									if (parent != null)
 									{
-										GameObject obj = Instantiate(Resources.Load("Level " + level + "/" + name) as GameObject, position, rotation);
-										obj.transform.localRotation = Quaternion.Euler(rotation.eulerAngles.x + objectChunkRotation.x, rotation.eulerAngles.y + objectChunkRotation.y, rotation.eulerAngles.z + objectChunkRotation.z);
-										
-										//Add to objects list
-										objects.Add(obj);
+										obj.transform.SetParent(parent.transform, true);
 									}
-									else
+									
+									//Add to objects list
+									objects.Add(obj);
+								}
+								else
+								{
+									GameObject obj = GenerateMesh(path, file, p3dName, fallback);
+									obj.transform.position = position;
+									obj.transform.rotation = rotation;
+									
+									if (parent != null)
 									{
-										GameObject obj = GenerateMesh("Level " + level + "/", name, p3dName);
-										obj.transform.position = position;
-										obj.transform.rotation = rotation;
-										
-										//Add to objects list
-										objects.Add(obj);
+										obj.transform.SetParent(parent.transform, true);
 									}
+									
+									//Add to objects list
+									objects.Add(obj);
 								}
 								
 								//Debug if data exists
@@ -413,7 +494,7 @@ public class P3DLoader : MonoBehaviour
 				}
 				else
 				{
-					GameObject obj = GenerateMesh("Level/", "coinShape_000", "level0" + level);
+					GameObject obj = GenerateMesh("Level/", "coinShape_000", "level0" + level, "");
 					obj.transform.position = position;
 					
 					//Add to objects list
@@ -515,7 +596,7 @@ public class P3DLoader : MonoBehaviour
 					}
 					else
 					{
-						GameObject obj = GenerateMesh("Level " + level + "/", skeletonJoint.Name + "Shape", chunk.Name);
+						GameObject obj = GenerateMesh("Level " + level + "/", skeletonJoint.Name + "Shape", chunk.Name, "");
 						obj.transform.position = position;
 						obj.transform.rotation = rotation;
 						
@@ -754,7 +835,7 @@ public class P3DLoader : MonoBehaviour
 			}
 			else
 			{
-				GameObject obj = GenerateMesh("Cars/" + car.name + "/", joint.model, p3dName);
+				GameObject obj = GenerateMesh("Cars/" + car.name + "/", joint.model, p3dName, "");
 				obj.transform.position = car.position + joint.position;
 				obj.transform.rotation = rotation;
 				
@@ -785,9 +866,10 @@ public class P3DLoader : MonoBehaviour
 		public bool translucent;
 		public int alphaTest;
 		public int lighting;
-	}	
+	}
+	
 	//Mesh generation
-	public GameObject GenerateMesh(string path, string file, string name)
+	public GameObject GenerateMesh(string path, string file, string name, string fallback)
 	{
 		GameObject parent = new GameObject();
 		parent.name = file;
@@ -901,6 +983,12 @@ public class P3DLoader : MonoBehaviour
 				Material material = ShaderMaterial(data[i]);
 				obj.GetComponent<MeshRenderer>().material = material;
 				obj.GetComponent<MeshRenderer>().material.mainTexture = Resources.Load(path + data[i].material.texture) as Texture2D;
+			}
+			else if (Resources.Load(fallback + data[i].material.texture))
+			{
+				Material material = ShaderMaterial(data[i]);
+				obj.GetComponent<MeshRenderer>().material = material;
+				obj.GetComponent<MeshRenderer>().material.mainTexture = Resources.Load(fallback + data[i].material.texture) as Texture2D;
 			}
 			
 			obj.name = data[i].material.mesh;
