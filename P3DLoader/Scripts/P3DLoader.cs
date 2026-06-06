@@ -323,13 +323,13 @@ public class P3DLoader : MonoBehaviour
 	void InstStatPhys(int level, NetP3DLib.P3D.Chunks.InstStatPhysChunk chunk, string p3dName)
 	{
 		//Get mesh from Inst Stat Phys
-		GetMesh(level, chunk, chunk.Name, p3dName, null, chunk.Name);
+		GetMesh(level, chunk, chunk.Name, p3dName, chunk.Name);
 	}
 	
 	void DynaPhys(int level, NetP3DLib.P3D.Chunks.DynaPhysChunk chunk, string p3dName)
 	{
 		//Get mesh from Dyna Phys
-		GetMesh(level, chunk, chunk.Name, p3dName, null, chunk.Name);
+		GetMesh(level, chunk, chunk.Name, p3dName, chunk.Name);
 	}
 	
 	void CompositeDrawablePropList(int level, Chunk chunk, NetP3DLib.P3D.Chunks.CompositeDrawableChunk compositeDrawable, string p3dName, string name)
@@ -342,36 +342,32 @@ public class P3DLoader : MonoBehaviour
 			//Composite Drawable Prop
 			var compositeDrawablePropChunks = compositeDrawablePropList.GetChunksOfType<NetP3DLib.P3D.Chunks.CompositeDrawablePropChunk>();
 			
-			//Parent
-			GameObject parent = new GameObject();
-			parent.name = name;
-			
 			foreach (var compositeDrawableProp in compositeDrawablePropChunks)
 			{
 				//Get mesh from Composite Drawable
-				GetMesh(level, chunk, name, p3dName, parent, compositeDrawableProp.Name);
+				GetMesh(level, chunk, name, p3dName, compositeDrawableProp.Name);
 			}
 		}
 	}
 	
-	void GetMesh(int level, Chunk chunk, string name, string p3dName, GameObject parent, string file)
+	void GetMesh(int level, Chunk chunk, string name, string p3dName, string file)
 	{
 		if (Resources.Load("Level " + level + "/" + name + "/" + file))
 		{
 			string path = "Level " + level + "/" + name + "/";
 			string fallback = "Level " + level + "/";
 			
-			InstanceList(chunk, path, file, p3dName, fallback, parent);
+			InstanceList(chunk, path, file, p3dName, fallback);
 		}
 		else if (Resources.Load("Level " + level + "/" + file))
 		{
 			string path = "Level " + level + "/";
 			
-			InstanceList(chunk, path, file, p3dName, path, parent);
+			InstanceList(chunk, path, file, p3dName, path);
 		}
 	}
 	
-	void InstanceList(Chunk chunk, string path, string file, string p3dName, string fallback, GameObject parent)
+	void InstanceList(Chunk chunk, string path, string file, string p3dName, string fallback)
 	{
 		//Instance List
 		var instanceListChunks = chunk.GetChunksOfType<NetP3DLib.P3D.Chunks.InstanceListChunk>();
@@ -429,21 +425,11 @@ public class P3DLoader : MonoBehaviour
 								Vector3 position = matrix.GetColumn(3);
 								Quaternion rotation = Quaternion.LookRotation(matrix.GetColumn(2), matrix.GetColumn(1));
 								
-								if (parent != null)
-								{
-									parent.transform.position = position;
-								}
-								
 								//Instantiate resources if available by Name
 								if (xml == false)
 								{
 									GameObject obj = Instantiate(Resources.Load(path + file) as GameObject, new Vector3(0, 0, 0), Quaternion.Euler(levelChunkRotation));
 									obj.transform.localRotation = Quaternion.Euler(rotation.eulerAngles.x + objectChunkRotation.x, rotation.eulerAngles.y + objectChunkRotation.y, rotation.eulerAngles.z + objectChunkRotation.z);
-									
-									if (parent != null)
-									{
-										obj.transform.SetParent(parent.transform, true);
-									}
 									
 									//Add to objects list
 									objects.Add(obj);
@@ -453,11 +439,6 @@ public class P3DLoader : MonoBehaviour
 									GameObject obj = GenerateMesh(path, file, p3dName, fallback);
 									obj.transform.position = position;
 									obj.transform.rotation = rotation;
-									
-									if (parent != null)
-									{
-										obj.transform.SetParent(parent.transform, true);
-									}
 									
 									//Add to objects list
 									objects.Add(obj);
