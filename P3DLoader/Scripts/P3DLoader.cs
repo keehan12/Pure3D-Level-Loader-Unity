@@ -52,6 +52,20 @@ public class Wheel
 	public string model;
 }
 
+[System.Serializable]
+public class Skeleton
+{
+	public string name;
+	public List<SkeletonJoint> joints;
+}
+
+[System.Serializable]
+public class SkeletonJoint
+{
+	public string joint;
+	public string model;
+}
+
 public class P3DLoader : MonoBehaviour
 {
 	//Game's art path
@@ -68,9 +82,13 @@ public class P3DLoader : MonoBehaviour
 	public Vector3 objectChunkRotation; //Recommended: (-90, 180, 0)
 	
 	[Space(8)]
-	[Header("Car")]
+	[Header("Cars")]
 	public List<CarWheels> wheels;
 	public List<CustomParent> customParents;
+	
+	[Space(8)]
+	[Header("Skeletons")]
+	public List<Skeleton> skeletons;
 	
 	[Space(8)]
 	[Header("Other")]
@@ -302,6 +320,18 @@ public class P3DLoader : MonoBehaviour
 		return material;
 	}
 	
+	void InstStatPhys(int level, NetP3DLib.P3D.Chunks.InstStatPhysChunk chunk, string p3dName)
+	{
+		//Get mesh from Inst Stat Phys
+		GetMesh(level, chunk, chunk.Name, p3dName, chunk.Name);
+	}
+	
+	void DynaPhys(int level, NetP3DLib.P3D.Chunks.DynaPhysChunk chunk, string p3dName)
+	{
+		//Get mesh from Dyna Phys
+		GetMesh(level, chunk, chunk.Name, p3dName, chunk.Name);
+	}
+	
 	void AnimDynaPhys(int level, Chunk chunk, string p3dName)
 	{
 		//Anim Obj Wrapper
@@ -320,16 +350,33 @@ public class P3DLoader : MonoBehaviour
 		}
 	}
 	
-	void InstStatPhys(int level, NetP3DLib.P3D.Chunks.InstStatPhysChunk chunk, string p3dName)
+	List<GameObject> GetCompositeDrawable(int level, NetP3DLib.P3D.Chunks.CompositeDrawablePropChunk chunk, string name, string p3dName)
 	{
-		//Get mesh from Inst Stat Phys
-		GetMesh(level, chunk, chunk.Name, p3dName, chunk.Name);
-	}
-	
-	void DynaPhys(int level, NetP3DLib.P3D.Chunks.DynaPhysChunk chunk, string p3dName)
-	{
-		//Get mesh from Dyna Phys
-		GetMesh(level, chunk, chunk.Name, p3dName, chunk.Name);
+		List<GameObject> objs = new List<GameObject>();
+		
+		string path = "Level " + level + "/" + name + "/";
+		string fallback = "Level " + level + "/";
+		
+		if (Resources.Load(path + chunk.Name))
+		{
+			//Instantiate resources if available by Name
+			if (xml == false)
+			{
+				GameObject obj = Instantiate(Resources.Load(path + chunk.Name) as GameObject, new Vector3(0, 0, 0), Quaternion.Euler(objectChunkRotation));
+				
+				//Add to objects list
+				objs.Add(obj);
+			}
+			else
+			{
+				GameObject obj = GenerateMesh(path, chunk.Name, p3dName, fallback);
+				
+				//Add to objects list
+				objs.Add(obj);
+			}
+		}
+		
+		return objs;
 	}
 	
 	void CompositeDrawablePropList(int level, Chunk chunk, NetP3DLib.P3D.Chunks.CompositeDrawableChunk compositeDrawable, string p3dName, string name)
@@ -426,22 +473,25 @@ public class P3DLoader : MonoBehaviour
 								Quaternion rotation = Quaternion.LookRotation(matrix.GetColumn(2), matrix.GetColumn(1));
 								
 								//Instantiate resources if available by Name
-								if (xml == false)
+								if (Resources.Load(path + file))
 								{
-									GameObject obj = Instantiate(Resources.Load(path + file) as GameObject, new Vector3(0, 0, 0), Quaternion.Euler(levelChunkRotation));
-									obj.transform.localRotation = Quaternion.Euler(rotation.eulerAngles.x + objectChunkRotation.x, rotation.eulerAngles.y + objectChunkRotation.y, rotation.eulerAngles.z + objectChunkRotation.z);
-									
-									//Add to objects list
-									objects.Add(obj);
-								}
-								else
-								{
-									GameObject obj = GenerateMesh(path, file, p3dName, fallback);
-									obj.transform.position = position;
-									obj.transform.rotation = rotation;
-									
-									//Add to objects list
-									objects.Add(obj);
+									if (xml == false)
+									{
+										GameObject obj = Instantiate(Resources.Load(path + file) as GameObject, new Vector3(0, 0, 0), Quaternion.Euler(objectChunkRotation));
+										obj.transform.localRotation = Quaternion.Euler(rotation.eulerAngles.x + objectChunkRotation.x, rotation.eulerAngles.y + objectChunkRotation.y, rotation.eulerAngles.z + objectChunkRotation.z);
+										
+										//Add to objects list
+										objects.Add(obj);
+									}
+									else
+									{
+										GameObject obj = GenerateMesh(path, file, p3dName, fallback);
+										obj.transform.position = position;
+										obj.transform.rotation = rotation;
+										
+										//Add to objects list
+										objects.Add(obj);
+									}
 								}
 								
 								//Debug if data exists
@@ -456,12 +506,12 @@ public class P3DLoader : MonoBehaviour
 	
 	void Locator(int level, NetP3DLib.P3D.Chunks.LocatorChunk chunk)
 	{
+		//Get Position data
+		Vector3 position = new Vector3(chunk.Position.X, chunk.Position.Y, chunk.Position.Z);
+		
 		//Locator is Coin
 		if (Convert.ToString(chunk.LocatorType) == "Coin")
 		{
-			//Get Position data
-			Vector3 position = new Vector3(chunk.Position.X, chunk.Position.Y, chunk.Position.Z);
-			
 			//Instantiate resources if available by name
 			if (Resources.Load("Level/coinShape_000"))
 			{
@@ -488,9 +538,6 @@ public class P3DLoader : MonoBehaviour
 		if (Convert.ToString(chunk.LocatorType) == "CarStart")
 		{
 			string path = "";
-			
-			//Get Position data
-			Vector3 position = new Vector3(chunk.Position.X, chunk.Position.Y, chunk.Position.Z);
 			
 			//Search for car path
 			if (!Convert.ToString(chunk.Name).Contains("_v"))
@@ -528,7 +575,15 @@ public class P3DLoader : MonoBehaviour
 	}
 	
 	List<GameObject> Skeleton(int level, NetP3DLib.P3D.Chunks.SkeletonChunk chunk, Car car)
-	{	
+	{
+		Transform parent = null;
+		
+		if (car == null)
+		{
+			parent = new GameObject().transform;
+			parent.name = chunk.Name;
+		}
+		
 		List<GameObject> joints = new List<GameObject>();
 		
 		//Skeleton Joint
@@ -564,27 +619,43 @@ public class P3DLoader : MonoBehaviour
 			
 			if (car == null)
 			{
-				//Instantiate resources if available by Name
-				if (Resources.Load("Level " + level + "/" + skeletonJoint.Name + "Shape"))
+				GameObject joint = new GameObject();
+				joint.transform.position = position;
+				joint.transform.rotation = rotation;
+				joint.name = skeletonJoint.Name;
+				joint.transform.SetParent(parent, true);
+				
+				for (int i = 0; i < skeletons.Count; i++)
 				{
-					if (xml == false)
+					for (int a = 0; a < skeletons[i].joints.Count; a++)
 					{
-						GameObject obj = Instantiate(Resources.Load("Level " + level + "/" + skeletonJoint.Name + "Shape") as GameObject, position, rotation);
-						obj.transform.localRotation = Quaternion.Euler(rotation.eulerAngles.x + objectChunkRotation.x, rotation.eulerAngles.y + objectChunkRotation.y, rotation.eulerAngles.z + objectChunkRotation.z);
-						
-						//Add to objects list
-						objects.Add(obj);
-					}
-					else
-					{
-						GameObject obj = GenerateMesh("Level " + level + "/", skeletonJoint.Name + "Shape", chunk.Name, "");
-						obj.transform.position = position;
-						obj.transform.rotation = rotation;
-						
-						//Add to objects list
-						objects.Add(obj);
+						if (skeletons[i].joints[a].joint == skeletonJoint.Name)
+						{
+							//Instantiate resources if available by Name
+							if (Resources.Load("Level " + level + "/" + chunk.Name + "/" + skeletons[i].joints[a].model))
+							{
+								if (xml == false)
+								{
+									GameObject obj = Instantiate(Resources.Load("Level " + level + "/" + chunk.Name + "/" + skeletons[i].joints[a].model) as GameObject, position, rotation);
+									obj.transform.localRotation = Quaternion.Euler(rotation.eulerAngles.x + objectChunkRotation.x, rotation.eulerAngles.y + objectChunkRotation.y, rotation.eulerAngles.z + objectChunkRotation.z);
+									
+									obj.transform.SetParent(joint.transform, true);
+								}
+								else
+								{
+									GameObject obj = GenerateMesh("Level " + level + "/" + chunk.Name  + "/", skeletons[i].joints[a].model, chunk.Name, "Level " + level + "/");
+									obj.transform.position = position;
+									obj.transform.rotation = rotation;
+									
+									obj.transform.SetParent(joint.transform, true);
+								}
+							}
+						}
 					}
 				}
+				
+				//Add to objects list
+				objects.Add(parent.gameObject);
 			}
 			else
 			{
@@ -596,17 +667,17 @@ public class P3DLoader : MonoBehaviour
 				joint.model = skeletonJoint.Name + "Shape";
 				
 				//Parent
-				GameObject parent = new GameObject();
-				parent.name = skeletonJoint.Name;
-				parent.transform.position = car.position + position;
+				GameObject jointParent = new GameObject();
+				jointParent.name = skeletonJoint.Name;
+				jointParent.transform.position = car.position + position;
 				
 				if (xml == false)
 				{
-					parent.transform.localRotation = Quaternion.Euler(rotation.eulerAngles.x + objectChunkRotation.x, rotation.eulerAngles.y + objectChunkRotation.y, rotation.eulerAngles.z + objectChunkRotation.z);;
+					jointParent.transform.localRotation = Quaternion.Euler(rotation.eulerAngles.x + objectChunkRotation.x, rotation.eulerAngles.y + objectChunkRotation.y, rotation.eulerAngles.z + objectChunkRotation.z);;
 				}
 				else
 				{
-					parent.transform.localRotation = rotation;
+					jointParent.transform.localRotation = rotation;
 				}
 				
 				//Set custom parent
@@ -621,7 +692,7 @@ public class P3DLoader : MonoBehaviour
 						//Base models
 						if (customParents[i].child != skeletonJoint.Name)
 						{
-							JointCar(car, joint, parent);
+							JointCar(car, joint, jointParent);
 						}
 						
 						//Custom parents
@@ -630,7 +701,7 @@ public class P3DLoader : MonoBehaviour
 							if (customParents[i].child != skeletonJoint.Name)
 							{
 								joint.model = customParents[i].model;
-								JointCar(car, joint, parent);
+								JointCar(car, joint, jointParent);
 							}
 						}
 					}
@@ -649,7 +720,7 @@ public class P3DLoader : MonoBehaviour
 							{
 								current = wheels[i].wheel[a].joint;
 								joint.model = wheels[i].wheel[a].model;
-								JointCar(car, joint, parent);
+								JointCar(car, joint, jointParent);
 							}
 						}
 					}
@@ -660,15 +731,15 @@ public class P3DLoader : MonoBehaviour
 				{
 					if (current != skeletonJoint.Name)
 					{
-						JointCar(car, joint, parent);
+						JointCar(car, joint, jointParent);
 					}
 				}
 				
 				//Add joint to parent GameObject list
-				joints.Add(parent);
+				joints.Add(jointParent);
 				
 				//Add to objects list
-				objects.Add(parent);
+				objects.Add(jointParent);
 			}
 			
 			//Debug if data exists
